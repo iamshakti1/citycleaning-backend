@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CityClean London — Admin</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --navy:#0F2A44; --blue:#1B6FC9; --blue-dark:#0F4E93; --blue-pale:#E7F1FC;
+    --bg:#F5F7FA; --card:#FFFFFF; --line:#E1E6EC; --text:#16222E; --text-soft:#5B6B7A;
+    --green:#1E8A5A; --green-pale:#E5F6EE; --red:#C4392B; --red-pale:#FBEAE7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--navy);color:#fff;padding:20px 24px;display:flex;align-items:center;gap:10px;}
+  header i{font-size:22px;color:#8FC4FF;}
+  header h1{font-size:17px;margin:0;font-weight:600;}
+  .wrap{max-width:960px;margin:0 auto;padding:22px 20px 60px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:760px){.grid{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .card h2{font-size:14px;margin:0 0 12px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .card h2 i{color:var(--blue);}
+  label{display:block;font-size:12px;color:var(--text-soft);margin:10px 0 4px;font-weight:600;}
+  label:first-child{margin-top:0;}
+  input[type=text],input[type=number],select{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;background:#fbfcfd;
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);}
+  .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .btn-block{width:100%;margin-top:12px;}
+  .loc-status{margin-top:8px;font-size:12px;color:var(--text-soft);display:flex;align-items:center;gap:6px;}
+  .loc-status.got{color:var(--green);}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;color:var(--text-soft);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);}
+  td{padding:7px 8px;border-bottom:1px solid var(--line);}
+  .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;}
+  .badge.ok{background:var(--green-pale);color:var(--green);}
+  .badge.fail{background:var(--red-pale);color:var(--red);}
+  .empty{font-size:12.5px;color:var(--text-soft);text-align:center;padding:16px 0;}
+  .refresh{float:right;font-size:12px;cursor:pointer;color:var(--blue-dark);font-weight:600;background:none;border:none;}
+</style>
+</head>
+<body>
+<header><i class="ti ti-building-fortress" aria-hidden="true"></i><h1>CityClean London — Admin dashboard</h1></header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card">
+      <h2><i class="ti ti-map-pin" aria-hidden="true"></i>Add a site</h2>
+      <label>Client name</label>
+      <input type="text" id="site-name" placeholder="e.g. Pizzeria Pappagone">
+      <label>Address</label>
+      <input type="text" id="site-address" placeholder="e.g. 123 High Street, London">
+      <div class="row2">
+        <div>
+          <label>Radius (m)</label>
+          <input type="number" id="site-radius" value="80" min="20" max="500">
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button class="btn" id="capture-loc" style="width:100%;"><i class="ti ti-crosshair" aria-hidden="true"></i> Use my location</button>
+        </div>
+      </div>
+      <div class="loc-status" id="loc-status"><i class="ti ti-info-circle" aria-hidden="true"></i>No location captured</div>
+      <button class="btn btn-primary btn-block" id="save-site">Save site</button>
+    </div>
+
+    <div class="card">
+      <h2><i class="ti ti-user-plus" aria-hidden="true"></i>Add staff</h2>
+      <label>Full name</label>
+      <input type="text" id="staff-name" placeholder="e.g. Shakti">
+      <label>Role</label>
+      <select id="staff-role">
+        <option>Chef</option><option>Chef assistant</option><option>Kitchen porter</option>
+        <option>Waiting staff</option><option>Bar staff</option><option>Housekeeping</option>
+      </select>
+      <label>Phone (optional)</label>
+      <input type="text" id="staff-phone" placeholder="07...">
+      <button class="btn btn-primary btn-block" id="save-staff">Save staff member</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><i class="ti ti-list" aria-hidden="true"></i>Sites</h2>
+    <div id="sites-table"><div class="empty">No sites yet</div></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="ti ti-users" aria-hidden="true"></i>Staff</h2>
+    <div id="staff-table"><div class="empty">No staff yet</div></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="ti ti-history" aria-hidden="true"></i>Activity log<button class="refresh" id="refresh-log"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
+    <div id="log-table"><div class="empty">No activity yet</div></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let capturedCoords = null;
+
+async function api(path, opts) {
+  const res = await fetch(API + path, opts);
+  return res.json();
+}
+
+async function loadSites() {
+  const sites = await api('/api/sites');
+  const el = document.getElementById('sites-table');
+  if (!sites.length) { el.innerHTML = '<div class="empty">No sites yet</div>'; return; }
+  el.innerHTML = `<table><tr><th>Client</th><th>Address</th><th>Radius</th><th>Coords</th></tr>${
+    sites.map(s => `<tr><td>${s.client_name}</td><td>${s.address || '—'}</td><td>${s.geofence_radius_m}m</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td></tr>`).join('')
+  }</table>`;
+  return sites;
+}
+
+async function loadStaff() {
+  const staff = await api('/api/staff');
+  const el = document.getElementById('staff-table');
+  if (!staff.length) { el.innerHTML = '<div class="empty">No staff yet</div>'; return; }
+  el.innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Phone</th></tr>${
+    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td></tr>`).join('')
+  }</table>`;
+  return staff;
+}
+
+async function loadLog() {
+  const entries = await api('/api/time-entries');
+  const el = document.getElementById('log-table');
+  if (!entries.length) { el.innerHTML = '<div class="empty">No activity yet</div>'; return; }
+  el.innerHTML = `<table><tr><th>Staff</th><th>Site</th><th>Action</th><th>Distance</th><th>Time</th><th>Status</th></tr>${
+    entries.map(e => `<tr>
+      <td>${e.staff_name}</td><td>${e.client_name}</td><td>${e.action.replace('_',' ')}</td>
+      <td>${e.distance_m}m</td><td>${new Date(e.tap_time).toLocaleString()}</td>
+      <td><span class="badge ${e.accepted ? 'ok' : 'fail'}">${e.accepted ? 'Accepted' : 'Rejected'}</span></td>
+    </tr>`).join('')
+  }</table>`;
+}
+
+document.getElementById('capture-loc').addEventListener('click', () => {
+  const status = document.getElementById('loc-status');
+  status.className = 'loc-status';
+  status.innerHTML = '<i class="ti ti-loader-2" aria-hidden="true"></i>Getting location...';
+  navigator.geolocation.getCurrentPosition(pos => {
+    capturedCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    status.className = 'loc-status got';
+    status.innerHTML = '<i class="ti ti-check" aria-hidden="true"></i>Captured (' + capturedCoords.lat.toFixed(5) + ', ' + capturedCoords.lng.toFixed(5) + ')';
+  }, () => {
+    status.innerHTML = '<i class="ti ti-alert-triangle" aria-hidden="true"></i>Could not get location — allow access and retry';
+  }, { enableHighAccuracy: true, timeout: 10000 });
+});
+
+document.getElementById('save-site').addEventListener('click', async () => {
+  const client_name = document.getElementById('site-name').value.trim();
+  const address = document.getElementById('site-address').value.trim();
+  const geofence_radius_m = +document.getElementById('site-radius').value;
+  if (!client_name) { alert('Enter a site name'); return; }
+  if (!capturedCoords) { alert('Capture the site location first'); return; }
+  await api('/api/sites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_name, address, latitude: capturedCoords.lat, longitude: capturedCoords.lng, geofence_radius_m })
+  });
+  document.getElementById('site-name').value = '';
+  document.getElementById('site-address').value = '';
+  capturedCoords = null;
+  document.getElementById('loc-status').className = 'loc-status';
+  document.getElementById('loc-status').innerHTML = '<i class="ti ti-info-circle" aria-hidden="true"></i>No location captured';
+  loadSites();
+});
+
+document.getElementById('save-staff').addEventListener('click', async () => {
+  const name = document.getElementById('staff-name').value.trim();
+  const role = document.getElementById('staff-role').value;
+  const phone = document.getElementById('staff-phone').value.trim();
+  if (!name) { alert('Enter a staff name'); return; }
+  await api('/api/staff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, role, phone })
+  });
+  document.getElementById('staff-name').value = '';
+  document.getElementById('staff-phone').value = '';
+  loadStaff();
+});
+
+document.getElementById('refresh-log').addEventListener('click', loadLog);
+
+loadSites();
+loadStaff();
+loadLog();
+</script>
+</body>
+</html>
