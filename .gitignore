@@ -1,0 +1,7 @@
+node_modules/
+citycleaning-app/
+citycleaning.db
+citycleaning.db-shm
+citycleaning.db-wal
+server.log
+.env
