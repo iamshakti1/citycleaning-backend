@@ -17,19 +17,42 @@ app.use(express.static('public'));
 
 // Add a new staff member
 app.post('/api/staff', (req, res) => {
-  const { name, role, phone } = req.body;
+  const { name, role, phone, pin } = req.body;
   if (!name || !role) {
     return res.status(400).json({ error: 'name and role are required' });
   }
-  const stmt = db.prepare('INSERT INTO staff (name, role, phone) VALUES (?, ?, ?)');
-  const result = stmt.run(name, role, phone || null);
-  res.json({ id: result.lastInsertRowid, name, role, phone: phone || null });
+  if (pin && !/^\d{4}$/.test(pin)) {
+    return res.status(400).json({ error: 'pin must be exactly 4 digits' });
+  }
+  if (pin) {
+    const existing = db.prepare('SELECT id FROM staff WHERE pin = ? AND active = 1').get(pin);
+    if (existing) {
+      return res.status(400).json({ error: 'That PIN is already in use by another staff member' });
+    }
+  }
+  const stmt = db.prepare('INSERT INTO staff (name, role, phone, pin) VALUES (?, ?, ?, ?)');
+  const result = stmt.run(name, role, phone || null, pin || null);
+  res.json({ id: result.lastInsertRowid, name, role, phone: phone || null, pin: pin || null });
 });
 
 // List all staff
 app.get('/api/staff', (req, res) => {
   const rows = db.prepare('SELECT * FROM staff WHERE active = 1').all();
   res.json(rows);
+});
+
+// Identify a staff member by their PIN — used by the app before tap in/out,
+// so staff enter their own code instead of picking their name off a list.
+app.post('/api/staff/verify-pin', (req, res) => {
+  const { pin } = req.body;
+  if (!pin) {
+    return res.status(400).json({ error: 'pin is required' });
+  }
+  const staff = db.prepare('SELECT id, name, role FROM staff WHERE pin = ? AND active = 1').get(pin);
+  if (!staff) {
+    return res.status(404).json({ error: 'No staff member found with that PIN' });
+  }
+  res.json(staff);
 });
 
 // ---------- SITES ----------

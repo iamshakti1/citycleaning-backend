@@ -79,6 +79,8 @@
       </select>
       <label>Phone (optional)</label>
       <input type="text" id="staff-phone" placeholder="07...">
+      <label>4-digit PIN</label>
+      <input type="text" id="staff-pin" placeholder="e.g. 8191" maxlength="4" inputmode="numeric">
       <button class="btn btn-primary btn-block" id="save-staff">Save staff member</button>
     </div>
   </div>
@@ -122,8 +124,8 @@ async function loadStaff() {
   const staff = await api('/api/staff');
   const el = document.getElementById('staff-table');
   if (!staff.length) { el.innerHTML = '<div class="empty">No staff yet</div>'; return; }
-  el.innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Phone</th></tr>${
-    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td></tr>`).join('')
+  el.innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Phone</th><th>PIN</th></tr>${
+    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td><td>${s.pin || '—'}</td></tr>`).join('')
   }</table>`;
   return staff;
 }
@@ -177,14 +179,18 @@ document.getElementById('save-staff').addEventListener('click', async () => {
   const name = document.getElementById('staff-name').value.trim();
   const role = document.getElementById('staff-role').value;
   const phone = document.getElementById('staff-phone').value.trim();
+  const pin = document.getElementById('staff-pin').value.trim();
   if (!name) { alert('Enter a staff name'); return; }
-  await api('/api/staff', {
+  if (pin && !/^\d{4}$/.test(pin)) { alert('PIN must be exactly 4 digits'); return; }
+  const result = await api('/api/staff', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, role, phone })
+    body: JSON.stringify({ name, role, phone, pin })
   });
+  if (result.error) { alert(result.error); return; }
   document.getElementById('staff-name').value = '';
   document.getElementById('staff-phone').value = '';
+  document.getElementById('staff-pin').value = '';
   loadStaff();
 });
 

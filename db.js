@@ -13,6 +13,7 @@ db.exec(`
     name TEXT NOT NULL,
     role TEXT NOT NULL,
     phone TEXT,
+    pin TEXT,
     active INTEGER DEFAULT 1
   );
 
@@ -39,5 +40,13 @@ db.exec(`
     FOREIGN KEY (site_id) REFERENCES sites(id)
   );
 `);
+
+// Migration: older databases (created before PIN support was added) won't
+// have this column yet. This safely adds it without losing existing data.
+try {
+  db.exec('ALTER TABLE staff ADD COLUMN pin TEXT');
+} catch (e) {
+  // Column already exists — nothing to do.
+}
 
 module.exports = db;
