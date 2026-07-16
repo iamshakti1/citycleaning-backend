@@ -43,13 +43,6 @@ app.get('/api/staff', (req, res) => {
 
 // Identify a staff member by their PIN — used by the app before tap in/out,
 // so staff enter their own code instead of picking their name off a list.
-// TEMPORARY — remove after use
-app.get('/api/setup-pins-temp', (req, res) => {
-  db.prepare("UPDATE staff SET pin = '1111' WHERE id = 1").run();
-  db.prepare("UPDATE staff SET pin = '2222' WHERE id = 2").run();
-  db.prepare("UPDATE staff SET pin = '3333' WHERE id = 3").run();
-  res.json({ done: true });
-});
 app.post('/api/staff/verify-pin', (req, res) => {
   const { pin } = req.body;
   if (!pin) {
