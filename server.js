@@ -41,6 +41,13 @@ app.get('/api/staff', (req, res) => {
   res.json(rows);
 });
 
+// Delete a staff member entirely (used for cleaning up test/wrong records)
+app.delete('/api/staff/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM staff WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Staff member not found' });
+  res.json({ deleted: true });
+});
+
 // Identify a staff member by their PIN — used by the app before tap in/out,
 // so staff enter their own code instead of picking their name off a list.
 app.post('/api/staff/verify-pin', (req, res) => {
@@ -80,6 +87,13 @@ app.post('/api/sites', (req, res) => {
 app.get('/api/sites', (req, res) => {
   const rows = db.prepare('SELECT * FROM sites').all();
   res.json(rows);
+});
+
+// Delete a site entirely (used for cleaning up test/wrong records)
+app.delete('/api/sites/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM sites WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Site not found' });
+  res.json({ deleted: true });
 });
 
 // ---------- TAP IN / TAP OUT (the core feature) ----------
