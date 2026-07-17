@@ -114,20 +114,30 @@ async function loadSites() {
   const sites = await api('/api/sites');
   const el = document.getElementById('sites-table');
   if (!sites.length) { el.innerHTML = '<div class="empty">No sites yet</div>'; return; }
-  el.innerHTML = `<table><tr><th>Client</th><th>Address</th><th>Radius</th><th>Coords</th></tr>${
-    sites.map(s => `<tr><td>${s.client_name}</td><td>${s.address || '—'}</td><td>${s.geofence_radius_m}m</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td></tr>`).join('')
+  el.innerHTML = `<table><tr><th>Client</th><th>Address</th><th>Radius</th><th>Coords</th><th></th></tr>${
+    sites.map(s => `<tr><td>${s.client_name}</td><td>${s.address || '—'}</td><td>${s.geofence_radius_m}m</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td><td><button class="btn" onclick="deleteSite(${s.id}, '${s.client_name.replace(/'/g, "\\'")}')">Delete</button></td></tr>`).join('')
   }</table>`;
   return sites;
 }
-
+async function deleteSite(id, name) {
+  if (!confirm(`Delete site "${name}"? This cannot be undone.`)) return;
+  await api(`/api/sites/${id}`, { method: 'DELETE' });
+  loadSites();
+}
 async function loadStaff() {
   const staff = await api('/api/staff');
   const el = document.getElementById('staff-table');
   if (!staff.length) { el.innerHTML = '<div class="empty">No staff yet</div>'; return; }
-  el.innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Phone</th><th>PIN</th></tr>${
-    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td><td>${s.pin || '—'}</td></tr>`).join('')
+  el.innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Phone</th><th>PIN</th><th></th></tr>${
+    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td><td>${s.pin || '—'}</td><td><button class="btn" onclick="deleteStaff(${s.id}, '${s.name.replace(/'/g, "\\'")}')">Delete</button></td></tr>`).join('')
   }</table>`;
   return staff;
+}
+async function deleteStaff(id, name) {
+  if (!confirm(`Delete staff member "${name}"? This cannot be undone.`)) return;
+  await api(`/api/staff/${id}`, { method: 'DELETE' });
+  loadStaff();
+}
 }
 
 async function loadLog() {
