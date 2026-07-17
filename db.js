@@ -51,7 +51,7 @@ try {
 // Ensure every active staff member has a PIN. Runs on every startup,
 // so PINs survive Render's free-tier restarts. Only fills in missing
 // PINs — never overwrites one that's already set.
-const staffWithoutPin = db.prepare('SELECT id FROM staff WHERE active = 1 AND (pin IS NULL OR pin = "")').all();
+const staffWithoutPin = db.prepare("SELECT id FROM staff WHERE active = 1 AND (pin IS NULL OR pin = '')").all();
 staffWithoutPin.forEach((s, i) => {
   const defaultPin = String(1000 + s.id).padStart(4, '0');
   db.prepare('UPDATE staff SET pin = ? WHERE id = ?').run(defaultPin, s.id);
