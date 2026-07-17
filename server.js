@@ -100,6 +100,25 @@ app.post('/api/tap', (req, res) => {
   const staff = db.prepare('SELECT * FROM staff WHERE id = ?').get(staff_id);
   if (!staff) return res.status(404).json({ error: 'Staff member not found' });
 
+  // Prevent duplicate taps: check this staff member's most recent accepted
+  // tap (at any site). Can't clock in if already clocked in, and can't
+  // clock out if not currently clocked in.
+  const lastTap = db.prepare(
+    `SELECT * FROM time_entries WHERE staff_id = ? AND accepted = 1 ORDER BY tap_time DESC LIMIT 1`
+  ).get(staff_id);
+  if (action === 'clock_in' && lastTap && lastTap.action === 'clock_in') {
+    return res.status(409).json({
+      accepted: false,
+      message: `you are already clocked in — clock out first`,
+    });
+  }
+  if (action === 'clock_out' && (!lastTap || lastTap.action === 'clock_out')) {
+    return res.status(409).json({
+      accepted: false,
+      message: `you are not currently clocked in`,
+    });
+  }
+
   // THE ENFORCEMENT: this check happens on the server, using the coordinates
   // the phone sent, compared against the site's saved location and radius.
   const { distance, accepted } = isWithinGeofence(latitude, longitude, site);
