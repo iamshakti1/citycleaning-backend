@@ -45,9 +45,15 @@ app.get('/api/staff', async (req, res) => {
 
 // Delete a staff member entirely (used for cleaning up test/wrong records)
 app.delete('/api/staff/:id', async (req, res) => {
-  const result = await db.query('DELETE FROM staff WHERE id = $1', [req.params.id]);
-  if (result.rowCount === 0) return res.status(404).json({ error: 'Staff member not found' });
-  res.json({ deleted: true });
+  try {
+    await db.query('DELETE FROM time_entries WHERE staff_id = $1', [req.params.id]);
+    const result = await db.query('DELETE FROM staff WHERE id = $1', [req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Staff member not found' });
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error('Failed to delete staff:', err);
+    res.status(500).json({ error: 'Failed to delete staff member' });
+  }
 });
 
 // Identify a staff member by their PIN — used by the app before tap in/out,
@@ -87,9 +93,15 @@ app.get('/api/sites', async (req, res) => {
 
 // Delete a site entirely (used for cleaning up test/wrong records)
 app.delete('/api/sites/:id', async (req, res) => {
-  const result = await db.query('DELETE FROM sites WHERE id = $1', [req.params.id]);
-  if (result.rowCount === 0) return res.status(404).json({ error: 'Site not found' });
-  res.json({ deleted: true });
+  try {
+    await db.query('DELETE FROM time_entries WHERE site_id = $1', [req.params.id]);
+    const result = await db.query('DELETE FROM sites WHERE id = $1', [req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Site not found' });
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error('Failed to delete site:', err);
+    res.status(500).json({ error: 'Failed to delete site' });
+  }
 });
 
 // ---------- TAP IN / TAP OUT (the core feature) ----------
