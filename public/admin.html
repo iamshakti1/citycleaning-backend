@@ -138,7 +138,6 @@ async function deleteStaff(id, name) {
   await api(`/api/staff/${id}`, { method: 'DELETE' });
   loadStaff();
 }
-}
 
 async function loadLog() {
   const entries = await api('/api/time-entries');
