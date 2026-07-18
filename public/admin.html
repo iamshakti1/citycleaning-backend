@@ -65,6 +65,15 @@
         </div>
       </div>
       <div class="loc-status" id="loc-status"><i class="ti ti-info-circle" aria-hidden="true"></i>No location captured</div>
+      <label>Or enter coordinates manually (from Google Maps)</label>
+      <div class="row2">
+        <div>
+          <input type="text" id="site-lat-manual" placeholder="Latitude e.g. 51.5786">
+        </div>
+        <div>
+          <input type="text" id="site-lng-manual" placeholder="Longitude e.g. -0.1029">
+        </div>
+      </div>
       <button class="btn btn-primary btn-block" id="save-site">Save site</button>
     </div>
 
@@ -169,12 +178,15 @@ document.getElementById('save-site').addEventListener('click', async () => {
   const client_name = document.getElementById('site-name').value.trim();
   const address = document.getElementById('site-address').value.trim();
   const geofence_radius_m = +document.getElementById('site-radius').value;
+  const manualLat = parseFloat(document.getElementById('site-lat-manual').value);
+  const manualLng = parseFloat(document.getElementById('site-lng-manual').value);
+  const coords = capturedCoords || (!isNaN(manualLat) && !isNaN(manualLng) ? { lat: manualLat, lng: manualLng } : null);
   if (!client_name) { alert('Enter a site name'); return; }
-  if (!capturedCoords) { alert('Capture the site location first'); return; }
+  if (!coords) { alert('Capture the site location, or enter latitude/longitude manually'); return; }
   await api('/api/sites', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_name, address, latitude: capturedCoords.lat, longitude: capturedCoords.lng, geofence_radius_m })
+    body: JSON.stringify({ client_name, address, latitude: coords.lat, longitude: coords.lng, geofence_radius_m })
   });
   document.getElementById('site-name').value = '';
   document.getElementById('site-address').value = '';
