@@ -1,61 +1,70 @@
 // db.js
-// Sets up the SQLite database and creates our tables if they don't exist yet.
-// Later, moving to PostgreSQL means swapping this file only — the routes stay the same.
+// Connects to PostgreSQL (hosted on Aiven) and creates our tables if they
+// don't exist yet. Replaces the old SQLite file, which reset every time
+// Render restarted the server — Postgres data lives on Aiven's own storage
+// and survives restarts/deploys.
 
-const Database = require('better-sqlite3');
-const db = new Database('citycleaning.db');
+const { Pool } = require('pg');
 
-db.pragma('journal_mode = WAL');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS staff (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    role TEXT NOT NULL,
-    phone TEXT,
-    pin TEXT,
-    active INTEGER DEFAULT 1
-  );
-
-  CREATE TABLE IF NOT EXISTS sites (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_name TEXT NOT NULL,
-    address TEXT,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    geofence_radius_m INTEGER NOT NULL DEFAULT 80
-  );
-
-  CREATE TABLE IF NOT EXISTS time_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    staff_id INTEGER NOT NULL,
-    site_id INTEGER NOT NULL,
-    action TEXT NOT NULL,            -- 'clock_in' or 'clock_out'
-    tap_time TEXT NOT NULL,
-    tap_lat REAL NOT NULL,
-    tap_lng REAL NOT NULL,
-    distance_m INTEGER NOT NULL,
-    accepted INTEGER NOT NULL,       -- 1 if within geofence, 0 if rejected
-    FOREIGN KEY (staff_id) REFERENCES staff(id),
-    FOREIGN KEY (site_id) REFERENCES sites(id)
-  );
-`);
-
-// Migration: older databases (created before PIN support was added) won't
-// have this column yet. This safely adds it without losing existing data.
-try {
-  db.exec('ALTER TABLE staff ADD COLUMN pin TEXT');
-} catch (e) {
-  // Column already exists — nothing to do.
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL environment variable is not set');
 }
-// Ensure every active staff member has a PIN. Runs on every startup,
-// so PINs survive Render's free-tier restarts. Only fills in missing
-// PINs — never overwrites one that's already set.
-const staffWithoutPin = db.prepare("SELECT id FROM staff WHERE active = 1 AND (pin IS NULL OR pin = '')").all();
-staffWithoutPin.forEach((s, i) => {
-  const defaultPin = String(1000 + s.id).padStart(4, '0');
-  db.prepare('UPDATE staff SET pin = ? WHERE id = ?').run(defaultPin, s.id);
-  console.log(`Assigned default PIN to staff id ${s.id}`);
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-module.exports = db;
+async function init() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS staff (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      phone TEXT,
+      pin TEXT,
+      active INTEGER DEFAULT 1
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sites (
+      id SERIAL PRIMARY KEY,
+      client_name TEXT NOT NULL,
+      address TEXT,
+      latitude DOUBLE PRECISION NOT NULL,
+      longitude DOUBLE PRECISION NOT NULL,
+      geofence_radius_m INTEGER NOT NULL DEFAULT 80
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS time_entries (
+      id SERIAL PRIMARY KEY,
+      staff_id INTEGER NOT NULL REFERENCES staff(id),
+      site_id INTEGER NOT NULL REFERENCES sites(id),
+      action TEXT NOT NULL,
+      tap_time TEXT NOT NULL,
+      tap_lat DOUBLE PRECISION NOT NULL,
+      tap_lng DOUBLE PRECISION NOT NULL,
+      distance_m INTEGER NOT NULL,
+      accepted INTEGER NOT NULL
+    )
+  `);
+
+  // Ensure every active staff member has a PIN. Runs on every startup —
+  // only fills in missing PINs, never overwrites one that's already set.
+  const missing = await pool.query(
+    "SELECT id FROM staff WHERE active = 1 AND (pin IS NULL OR pin = '')"
+  );
+  for (const s of missing.rows) {
+    const defaultPin = String(1000 + s.id).padStart(4, '0');
+    await pool.query('UPDATE staff SET pin = $1 WHERE id = $2', [defaultPin, s.id]);
+    console.log(`Assigned default PIN to staff id ${s.id}`);
+  }
+}
+
+module.exports = {
+  query: (text, params) => pool.query(text, params),
+  init,
+};

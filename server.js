@@ -16,7 +16,7 @@ app.use(express.static('public'));
 // ---------- STAFF ----------
 
 // Add a new staff member
-app.post('/api/staff', (req, res) => {
+app.post('/api/staff', async (req, res) => {
   const { name, role, phone, pin } = req.body;
   if (!name || !role) {
     return res.status(400).json({ error: 'name and role are required' });
@@ -25,80 +25,76 @@ app.post('/api/staff', (req, res) => {
     return res.status(400).json({ error: 'pin must be exactly 4 digits' });
   }
   if (pin) {
-    const existing = db.prepare('SELECT id FROM staff WHERE pin = ? AND active = 1').get(pin);
-    if (existing) {
+    const existing = await db.query('SELECT id FROM staff WHERE pin = $1 AND active = 1', [pin]);
+    if (existing.rows.length) {
       return res.status(400).json({ error: 'That PIN is already in use by another staff member' });
     }
   }
-  const stmt = db.prepare('INSERT INTO staff (name, role, phone, pin) VALUES (?, ?, ?, ?)');
-  const result = stmt.run(name, role, phone || null, pin || null);
-  res.json({ id: result.lastInsertRowid, name, role, phone: phone || null, pin: pin || null });
+  const result = await db.query(
+    'INSERT INTO staff (name, role, phone, pin) VALUES ($1, $2, $3, $4) RETURNING id',
+    [name, role, phone || null, pin || null]
+  );
+  res.json({ id: result.rows[0].id, name, role, phone: phone || null, pin: pin || null });
 });
 
 // List all staff
-app.get('/api/staff', (req, res) => {
-  const rows = db.prepare('SELECT * FROM staff WHERE active = 1').all();
-  res.json(rows);
+app.get('/api/staff', async (req, res) => {
+  const result = await db.query('SELECT * FROM staff WHERE active = 1');
+  res.json(result.rows);
 });
 
 // Delete a staff member entirely (used for cleaning up test/wrong records)
-app.delete('/api/staff/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM staff WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Staff member not found' });
+app.delete('/api/staff/:id', async (req, res) => {
+  const result = await db.query('DELETE FROM staff WHERE id = $1', [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Staff member not found' });
   res.json({ deleted: true });
 });
 
 // Identify a staff member by their PIN — used by the app before tap in/out,
 // so staff enter their own code instead of picking their name off a list.
-app.post('/api/staff/verify-pin', (req, res) => {
+app.post('/api/staff/verify-pin', async (req, res) => {
   const { pin } = req.body;
   if (!pin) {
     return res.status(400).json({ error: 'pin is required' });
   }
-  const staff = db.prepare('SELECT id, name, role FROM staff WHERE pin = ? AND active = 1').get(pin);
-  if (!staff) {
+  const result = await db.query('SELECT id, name, role FROM staff WHERE pin = $1 AND active = 1', [pin]);
+  if (!result.rows.length) {
     return res.status(404).json({ error: 'No staff member found with that PIN' });
   }
-  res.json(staff);
+  res.json(result.rows[0]);
 });
 
 // ---------- SITES ----------
 
 // Add a new client site
-app.post('/api/sites', (req, res) => {
+app.post('/api/sites', async (req, res) => {
   const { client_name, address, latitude, longitude, geofence_radius_m } = req.body;
   if (!client_name || latitude == null || longitude == null) {
     return res.status(400).json({ error: 'client_name, latitude and longitude are required' });
   }
-  const stmt = db.prepare(
-    'INSERT INTO sites (client_name, address, latitude, longitude, geofence_radius_m) VALUES (?, ?, ?, ?, ?)'
+  const result = await db.query(
+    'INSERT INTO sites (client_name, address, latitude, longitude, geofence_radius_m) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [client_name, address || null, latitude, longitude, geofence_radius_m || 80]
   );
-  const result = stmt.run(
-    client_name,
-    address || null,
-    latitude,
-    longitude,
-    geofence_radius_m || 80
-  );
-  res.json({ id: result.lastInsertRowid, client_name, address, latitude, longitude, geofence_radius_m: geofence_radius_m || 80 });
+  res.json({ id: result.rows[0].id, client_name, address, latitude, longitude, geofence_radius_m: geofence_radius_m || 80 });
 });
 
 // List all sites
-app.get('/api/sites', (req, res) => {
-  const rows = db.prepare('SELECT * FROM sites').all();
-  res.json(rows);
+app.get('/api/sites', async (req, res) => {
+  const result = await db.query('SELECT * FROM sites');
+  res.json(result.rows);
 });
 
 // Delete a site entirely (used for cleaning up test/wrong records)
-app.delete('/api/sites/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM sites WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Site not found' });
+app.delete('/api/sites/:id', async (req, res) => {
+  const result = await db.query('DELETE FROM sites WHERE id = $1', [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Site not found' });
   res.json({ deleted: true });
 });
 
 // ---------- TAP IN / TAP OUT (the core feature) ----------
 
-app.post('/api/tap', (req, res) => {
+app.post('/api/tap', async (req, res) => {
   const { staff_id, site_id, action, latitude, longitude } = req.body;
 
   if (!staff_id || !site_id || !action || latitude == null || longitude == null) {
@@ -108,18 +104,22 @@ app.post('/api/tap', (req, res) => {
     return res.status(400).json({ error: "action must be 'clock_in' or 'clock_out'" });
   }
 
-  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(site_id);
+  const siteResult = await db.query('SELECT * FROM sites WHERE id = $1', [site_id]);
+  const site = siteResult.rows[0];
   if (!site) return res.status(404).json({ error: 'Site not found' });
 
-  const staff = db.prepare('SELECT * FROM staff WHERE id = ?').get(staff_id);
+  const staffResult = await db.query('SELECT * FROM staff WHERE id = $1', [staff_id]);
+  const staff = staffResult.rows[0];
   if (!staff) return res.status(404).json({ error: 'Staff member not found' });
 
   // Prevent duplicate taps: check this staff member's most recent accepted
   // tap (at any site). Can't clock in if already clocked in, and can't
   // clock out if not currently clocked in.
-  const lastTap = db.prepare(
-    `SELECT * FROM time_entries WHERE staff_id = ? AND accepted = 1 ORDER BY tap_time DESC LIMIT 1`
-  ).get(staff_id);
+  const lastTapResult = await db.query(
+    'SELECT * FROM time_entries WHERE staff_id = $1 AND accepted = 1 ORDER BY tap_time DESC LIMIT 1',
+    [staff_id]
+  );
+  const lastTap = lastTapResult.rows[0];
   if (action === 'clock_in' && lastTap && lastTap.action === 'clock_in') {
     return res.status(409).json({
       accepted: false,
@@ -138,10 +138,11 @@ app.post('/api/tap', (req, res) => {
   const { distance, accepted } = isWithinGeofence(latitude, longitude, site);
 
   const tapTime = new Date().toISOString();
-  db.prepare(
+  await db.query(
     `INSERT INTO time_entries (staff_id, site_id, action, tap_time, tap_lat, tap_lng, distance_m, accepted)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(staff_id, site_id, action, tapTime, latitude, longitude, distance, accepted ? 1 : 0);
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [staff_id, site_id, action, tapTime, latitude, longitude, distance, accepted ? 1 : 0]
+  );
 
   if (!accepted) {
     return res.status(403).json({
@@ -162,32 +163,37 @@ app.post('/api/tap', (req, res) => {
 // ---------- TIMESHEETS ----------
 
 // All time entries for one staff member (accepted taps only, for a real timesheet)
-app.get('/api/timesheets/:staff_id', (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT te.*, s.client_name FROM time_entries te
-       JOIN sites s ON s.id = te.site_id
-       WHERE te.staff_id = ? AND te.accepted = 1
-       ORDER BY te.tap_time DESC`
-    )
-    .all(req.params.staff_id);
-  res.json(rows);
+app.get('/api/timesheets/:staff_id', async (req, res) => {
+  const result = await db.query(
+    `SELECT te.*, s.client_name FROM time_entries te
+     JOIN sites s ON s.id = te.site_id
+     WHERE te.staff_id = $1 AND te.accepted = 1
+     ORDER BY te.tap_time DESC`,
+    [req.params.staff_id]
+  );
+  res.json(result.rows);
 });
 
 // Everything (admin view — including rejected attempts, useful for spotting abuse)
-app.get('/api/time-entries', (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT te.*, st.name AS staff_name, s.client_name FROM time_entries te
-       JOIN staff st ON st.id = te.staff_id
-       JOIN sites s ON s.id = te.site_id
-       ORDER BY te.tap_time DESC`
-    )
-    .all();
-  res.json(rows);
+app.get('/api/time-entries', async (req, res) => {
+  const result = await db.query(
+    `SELECT te.*, st.name AS staff_name, s.client_name FROM time_entries te
+     JOIN staff st ON st.id = te.staff_id
+     JOIN sites s ON s.id = te.site_id
+     ORDER BY te.tap_time DESC`
+  );
+  res.json(result.rows);
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`CityCleaning backend running on http://localhost:${PORT}`);
-});
+
+db.init()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`CityCleaning backend running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });
