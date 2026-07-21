@@ -104,6 +104,10 @@
     <h2><i class="ti ti-users" aria-hidden="true"></i>Staff</h2>
     <div id="staff-table"><div class="empty">No staff yet</div></div>
   </div>
+  <div class="card">
+    <h2><i class="ti ti-clock-hour-4" aria-hidden="true"></i>Hours report<button class="refresh" id="refresh-hours"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
+    <div id="hours-table"><div class="empty">No data yet</div></div>
+  </div>
 
   <div class="card">
     <h2><i class="ti ti-history" aria-hidden="true"></i>Activity log<button class="refresh" id="refresh-log"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
@@ -158,6 +162,18 @@ async function loadLog() {
       <td>${e.staff_name}</td><td>${e.client_name}</td><td>${e.action.replace('_',' ')}</td>
       <td>${e.distance_m}m</td><td>${new Date(e.tap_time).toLocaleString()}</td>
       <td><span class="badge ${e.accepted ? 'ok' : 'fail'}">${e.accepted ? 'Accepted' : 'Rejected'}</span></td>
+    </tr>`).join('')
+  }</table>`;
+}
+async function loadHours() {
+  const report = await api('/api/reports/hours');
+  const el = document.getElementById('hours-table');
+  if (!report.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
+  el.innerHTML = `<table><tr><th>Name</th><th>Total hours</th><th>Status</th></tr>${
+    report.map(r => `<tr>
+      <td>${r.name}</td>
+      <td>${r.total_hours}</td>
+      <td>${r.currently_clocked_in ? '<span class="badge ok">Clocked in</span>' : '<span class="badge fail">Off shift</span>'}</td>
     </tr>`).join('')
   }</table>`;
 }
@@ -217,10 +233,12 @@ document.getElementById('save-staff').addEventListener('click', async () => {
 });
 
 document.getElementById('refresh-log').addEventListener('click', loadLog);
+document.getElementById('refresh-hours').addEventListener('click', loadHours);
 
 loadSites();
 loadStaff();
 loadLog();
+loadHours();
 </script>
 </body>
 </html>
