@@ -20,7 +20,7 @@
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   @media(max-width:760px){.grid{grid-template-columns:1fr;}}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
-  .card h2{font-size:14px;margin:0 0 12px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .card h2{font-size:15px;margin:0 0 14px;padding-bottom:10px;border-bottom:2px solid var(--blue-pale);font-weight:700;display:flex;align-items:center;gap:6px;}
   .card h2 i{color:var(--blue);}
   label{display:block;font-size:12px;color:var(--text-soft);margin:10px 0 4px;font-weight:600;}
   label:first-child{margin-top:0;}
@@ -29,6 +29,7 @@
   }
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);}
+  .btn-danger{border-color:var(--red-pale);background:var(--red-pale);color:var(--red);}
   .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;}
   .btn-block{width:100%;margin-top:12px;}
   .loc-status{margin-top:8px;font-size:12px;color:var(--text-soft);display:flex;align-items:center;gap:6px;}
@@ -124,7 +125,7 @@ async function loadSites() {
   const el = document.getElementById('sites-table');
   if (!sites.length) { el.innerHTML = '<div class="empty">No sites yet</div>'; return; }
   el.innerHTML = `<table><tr><th>Client</th><th>Address</th><th>Radius</th><th>Coords</th><th></th></tr>${
-    sites.map(s => `<tr><td>${s.client_name}</td><td>${s.address || '—'}</td><td>${s.geofence_radius_m}m</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td><td><button class="btn" onclick="deleteSite(${s.id}, '${s.client_name.replace(/'/g, "\\'")}')">Delete</button></td></tr>`).join('')
+    sites.map(s => `<tr><td>${s.client_name}</td><td>${s.address || '—'}</td><td>${s.geofence_radius_m}m</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td><td><button class="btn btn-danger" onclick="deleteSite(${s.id}, '${s.client_name.replace(/'/g, "\\'")}')">Delete</button></td></tr>`).join('')
   }</table>`;
   return sites;
 }
@@ -138,7 +139,7 @@ async function loadStaff() {
   const el = document.getElementById('staff-table');
   if (!staff.length) { el.innerHTML = '<div class="empty">No staff yet</div>'; return; }
   el.innerHTML = `<table><tr><th>Name</th><th>Role</th><th>Phone</th><th>PIN</th><th></th></tr>${
-    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td><td>${s.pin || '—'}</td><td><button class="btn" onclick="deleteStaff(${s.id}, '${s.name.replace(/'/g, "\\'")}')">Delete</button></td></tr>`).join('')
+    staff.map(s => `<tr><td>${s.name}</td><td>${s.role}</td><td>${s.phone || '—'}</td><td>${s.pin || '—'}</td><td><button class="btn btn-danger" onclick="deleteStaff(${s.id}, '${s.name.replace(/'/g, "\\'")}')">Delete</button></td></tr>`).join('')
   }</table>`;
   return staff;
 }
