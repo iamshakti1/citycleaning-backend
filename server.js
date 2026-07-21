@@ -251,6 +251,99 @@ app.get('/api/reports/hours', adminAuth, async (req, res) => {
   res.json(report);
 });
 
+
+// Weekly rota-style report: for a given week (Mon-Sun), grouped by site,
+// each staff member's shifts per day and their total hours for the week.
+// Pairs clock_in/clock_out globally per staff first (so a session that
+// started before the queried week but ends within it still works), then
+// keeps only sessions whose start falls inside the requested week.
+app.get('/api/reports/weekly', adminAuth, async (req, res) => {
+  let weekStart;
+  if (req.query.week_start) {
+    weekStart = new Date(req.query.week_start + 'T00:00:00Z');
+  } else {
+    const now = new Date();
+    const day = now.getUTCDay(); // 0=Sun..6=Sat
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diffToMonday));
+  }
+  const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const staffResult = await db.query('SELECT id, name FROM staff WHERE active = 1');
+  const staffNames = {};
+  staffResult.rows.forEach((s) => { staffNames[s.id] = s.name; });
+
+  const sitesResult = await db.query('SELECT id, client_name FROM sites');
+  const siteNames = {};
+  sitesResult.rows.forEach((s) => { siteNames[s.id] = s.client_name; });
+
+  const entriesResult = await db.query(
+    `SELECT staff_id, site_id, action, tap_time FROM time_entries
+     WHERE accepted = 1
+     ORDER BY staff_id, tap_time ASC`
+  );
+
+  // Pair sessions per staff, globally.
+  const sessions = []; // { staff_id, site_id, start, end }
+  const openByStaff = {};
+  for (const row of entriesResult.rows) {
+    if (row.action === 'clock_in') {
+      openByStaff[row.staff_id] = row;
+    } else if (row.action === 'clock_out' && openByStaff[row.staff_id]) {
+      const open = openByStaff[row.staff_id];
+      sessions.push({
+        staff_id: row.staff_id,
+        site_id: open.site_id,
+        start: new Date(open.tap_time),
+        end: new Date(row.tap_time),
+      });
+      delete openByStaff[row.staff_id];
+    }
+  }
+
+  // Keep only sessions starting inside the requested week.
+  const weekSessions = sessions.filter((s) => s.start >= weekStart && s.start < weekEnd);
+
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const fmtTime = (d) => d.toTimeString().slice(0, 5);
+
+  // Group: site_id -> staff_id -> { name, days: {Mon: [...] }, total_hours }
+  const bySite = {};
+  for (const s of weekSessions) {
+    if (!bySite[s.site_id]) bySite[s.site_id] = {};
+    if (!bySite[s.site_id][s.staff_id]) {
+      bySite[s.site_id][s.staff_id] = {
+        staff_id: s.staff_id,
+        name: staffNames[s.staff_id] || 'Unknown',
+        days: {},
+        total_hours: 0,
+      };
+    }
+    const dayIndex = (s.start.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+    const label = DAY_LABELS[dayIndex];
+    const entry = bySite[s.site_id][s.staff_id];
+    if (!entry.days[label]) entry.days[label] = [];
+    entry.days[label].push(`${fmtTime(s.start)}–${fmtTime(s.end)}`);
+    entry.total_hours += (s.end - s.start) / 3600000;
+  }
+
+  const report = Object.keys(bySite).map((siteId) => ({
+    site_id: Number(siteId),
+    client_name: siteNames[siteId] || 'Unknown site',
+    staff: Object.values(bySite[siteId]).map((st) => ({
+      ...st,
+      total_hours: Math.round(st.total_hours * 100) / 100,
+    })),
+  }));
+
+  res.json({
+    week_start: weekStart.toISOString().slice(0, 10),
+    week_end: new Date(weekEnd.getTime() - 86400000).toISOString().slice(0, 10),
+    days: DAY_LABELS,
+    sites: report,
+  });
+});
+
 const PORT = process.env.PORT || 3000;
 
 db.init()
