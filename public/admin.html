@@ -56,12 +56,7 @@
 </head>
 <body>
 <header><img src="/logo-clean.png" alt="CityClean logo"><h1>CityClean London — Admin dashboard</h1></header>
-
 <div class="wrap">
-  <div class="card">
-    <h2><i class="ti ti-users-group" aria-hidden="true"></i>Currently clocked in<button class="refresh" id="refresh-current"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
-    <div id="current-shift-table"><div class="empty">Loading...</div></div>
-  </div>
   <div class="grid">
     <div class="card">
       <h2><i class="ti ti-map-pin" aria-hidden="true"></i>Add a site</h2>
@@ -181,18 +176,6 @@ async function loadLog() {
       <td>${e.staff_name}</td><td>${e.client_name}</td><td>${e.action.replace('_',' ')}</td>
       <td>${e.distance_m}m</td><td>${new Date(e.tap_time).toLocaleString()}</td>
       <td><span class="badge ${e.accepted ? 'ok' : 'fail'}">${e.accepted ? 'Accepted' : 'Rejected'}</span></td>
-    </tr>`).join('')
-  }</table>`;
-}
-async function loadCurrentShift() {
-  const current = await api('/api/reports/current-shift');
-  const el = document.getElementById('current-shift-table');
-  if (!current.length) { el.innerHTML = '<div class="empty">Nobody is currently clocked in</div>'; return; }
-  el.innerHTML = `<table><tr><th>Name</th><th>Site</th><th>Since</th></tr>${
-    current.map(c => `<tr>
-      <td>${c.name}</td>
-      <td>${c.site}</td>
-      <td>${new Date(c.since).toLocaleString()}</td>
     </tr>`).join('')
   }</table>`;
 }
@@ -316,8 +299,6 @@ loadSites();
 loadStaff();
 loadLog();
 loadHours();
-loadCurrentShift();
-document.getElementById('refresh-current').addEventListener('click', loadCurrentShift);
 </script>
 </body>
 </html>
