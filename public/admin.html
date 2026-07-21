@@ -119,7 +119,7 @@
     <div id="staff-table"><div class="empty">No staff yet</div></div>
   </div>
   <div class="card">
-    <h2><i class="ti ti-clock-hour-4" aria-hidden="true"></i>Weekly rota<button class="refresh" id="refresh-hours"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
+    <h2><i class="ti ti-clock-hour-4" aria-hidden="true"></i>Weekly rota<button class="refresh" id="refresh-hours"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button><button class="refresh" id="export-csv" style="margin-right:14px;">Export CSV</button></h2>
     <div class="week-nav">
       <button class="btn" id="prev-week">← Previous week</button>
       <span id="week-label">Loading week...</span>
@@ -197,6 +197,7 @@ async function loadCurrentShift() {
   }</table>`;
 }
 let weekOffset = 0;
+let lastWeeklyReport = null;
 function mondayOf(date) {
   const d = new Date(date);
   const day = d.getUTCDay();
@@ -208,6 +209,7 @@ async function loadHours() {
   const target = new Date(base.getTime() + weekOffset * 7 * 86400000);
   const weekStartStr = target.toISOString().slice(0, 10);
   const report = await api(`/api/reports/weekly?week_start=${weekStartStr}`);
+  lastWeeklyReport = report;
   document.getElementById('week-label').textContent = `Week of ${report.week_start} to ${report.week_end}`;
   const el = document.getElementById('hours-table');
   if (!report.sites.length) { el.innerHTML = '<div class="empty">No shifts recorded this week</div>'; return; }
@@ -227,6 +229,29 @@ async function loadHours() {
   `).join('');
 }
 
+function exportCSV() {
+  if (!lastWeeklyReport || !lastWeeklyReport.sites.length) { alert('No data to export for this week'); return; }
+  const days = lastWeeklyReport.days;
+  let rows = [['Site', 'Name', ...days, 'Total hours']];
+  lastWeeklyReport.sites.forEach(site => {
+    site.staff.forEach(st => {
+      rows.push([
+        site.client_name,
+        st.name,
+        ...days.map(d => (st.days[d] || []).join(' | ')),
+        st.total_hours,
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `weekly-rota-${lastWeeklyReport.week_start}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 document.getElementById('capture-loc').addEventListener('click', () => {
   const status = document.getElementById('loc-status');
   status.className = 'loc-status';
@@ -283,6 +308,7 @@ document.getElementById('save-staff').addEventListener('click', async () => {
 
 document.getElementById('refresh-log').addEventListener('click', loadLog);
 document.getElementById('refresh-hours').addEventListener('click', loadHours);
+document.getElementById('export-csv').addEventListener('click', exportCSV);
 document.getElementById('prev-week').addEventListener('click', () => { weekOffset--; loadHours(); });
 document.getElementById('next-week').addEventListener('click', () => { weekOffset++; loadHours(); });
 
