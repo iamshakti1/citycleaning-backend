@@ -245,12 +245,49 @@ app.get('/api/reports/hours', adminAuth, async (req, res) => {
     staff_id: s.id,
     name: s.name,
     total_hours: Math.round(((totalsMs[s.id] || 0) / 3600000) * 100) / 100,
+
+
     currently_clocked_in: Boolean(openClockIn[s.id]),
   }));
 
   res.json(report);
 });
 
+
+// Who is currently clocked in right now, and at which site.
+app.get('/api/reports/current-shift', adminAuth, async (req, res) => {
+  const staffResult = await db.query('SELECT id, name FROM staff WHERE active = 1');
+  const staffNames = {};
+  staffResult.rows.forEach((s) => { staffNames[s.id] = s.name; });
+
+  const sitesResult = await db.query('SELECT id, client_name FROM sites');
+  const siteNames = {};
+  sitesResult.rows.forEach((s) => { siteNames[s.id] = s.client_name; });
+
+  const entriesResult = await db.query(
+    `SELECT staff_id, site_id, action, tap_time FROM time_entries
+     WHERE accepted = 1
+     ORDER BY staff_id, tap_time ASC`
+  );
+
+  const open = {};
+  for (const row of entriesResult.rows) {
+    if (row.action === 'clock_in') {
+      open[row.staff_id] = row;
+    } else if (row.action === 'clock_out') {
+      delete open[row.staff_id];
+    }
+  }
+
+  const currentlyIn = Object.values(open).map((row) => ({
+    staff_id: row.staff_id,
+    name: staffNames[row.staff_id] || 'Unknown',
+    site: siteNames[row.site_id] || 'Unknown site',
+    since: row.tap_time,
+  }));
+
+  res.json(currentlyIn);
+});
 
 // Weekly rota-style report: for a given week (Mon-Sun), grouped by site,
 // each staff member's shifts per day and their total hours for the week.
