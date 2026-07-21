@@ -42,6 +42,16 @@
   .badge.fail{background:var(--red-pale);color:var(--red);}
   .empty{font-size:12.5px;color:var(--text-soft);text-align:center;padding:16px 0;}
   .refresh{float:right;font-size:12px;cursor:pointer;color:var(--blue-dark);font-weight:600;background:none;border:none;}
+  .week-nav{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .week-nav .btn{padding:6px 10px;}
+  .week-nav span{font-size:13px;font-weight:600;color:var(--text-soft);}
+  .rota-site-title{background:var(--navy);color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:8px 8px 0 0;margin-top:18px;}
+  .rota-site-title:first-of-type{margin-top:0;}
+  table.rota{width:100%;border-collapse:collapse;font-size:12px;}
+  table.rota th, table.rota td{border:1px solid var(--line);padding:6px 8px;text-align:center;}
+  table.rota th{background:#f0f3f7;font-size:11px;}
+  table.rota td.name-cell{text-align:left;font-weight:600;background:#fbfcfd;}
+  table.rota td.total-cell{font-weight:700;background:var(--blue-pale);}
 </style>
 </head>
 <body>
@@ -105,7 +115,12 @@
     <div id="staff-table"><div class="empty">No staff yet</div></div>
   </div>
   <div class="card">
-    <h2><i class="ti ti-clock-hour-4" aria-hidden="true"></i>Hours report<button class="refresh" id="refresh-hours"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
+    <h2><i class="ti ti-clock-hour-4" aria-hidden="true"></i>Weekly rota<button class="refresh" id="refresh-hours"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button></h2>
+    <div class="week-nav">
+      <button class="btn" id="prev-week"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+      <span id="week-label">Loading week...</span>
+      <button class="btn" id="next-week"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+    </div>
     <div id="hours-table"><div class="empty">No data yet</div></div>
   </div>
 
@@ -165,17 +180,35 @@ async function loadLog() {
     </tr>`).join('')
   }</table>`;
 }
+let weekOffset = 0;
+function mondayOf(date) {
+  const d = new Date(date);
+  const day = d.getUTCDay();
+  const diff = day === 0 ? 6 : day - 1;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - diff));
+}
 async function loadHours() {
-  const report = await api('/api/reports/hours');
+  const base = mondayOf(new Date());
+  const target = new Date(base.getTime() + weekOffset * 7 * 86400000);
+  const weekStartStr = target.toISOString().slice(0, 10);
+  const report = await api(`/api/reports/weekly?week_start=${weekStartStr}`);
+  document.getElementById('week-label').textContent = `Week of ${report.week_start} to ${report.week_end}`;
   const el = document.getElementById('hours-table');
-  if (!report.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
-  el.innerHTML = `<table><tr><th>Name</th><th>Total hours</th><th>Status</th></tr>${
-    report.map(r => `<tr>
-      <td>${r.name}</td>
-      <td>${r.total_hours}</td>
-      <td>${r.currently_clocked_in ? '<span class="badge ok">Clocked in</span>' : '<span class="badge fail">Off shift</span>'}</td>
-    </tr>`).join('')
-  }</table>`;
+  if (!report.sites.length) { el.innerHTML = '<div class="empty">No shifts recorded this week</div>'; return; }
+  const days = report.days;
+  el.innerHTML = report.sites.map(site => `
+    <div class="rota-site-title">${site.client_name}</div>
+    <table class="rota">
+      <tr><th style="text-align:left;">Name</th>${days.map(d => `<th>${d}</th>`).join('')}<th>Total</th></tr>
+      ${site.staff.map(st => `
+        <tr>
+          <td class="name-cell">${st.name}</td>
+          ${days.map(d => `<td>${(st.days[d] || []).join('<br>') || '—'}</td>`).join('')}
+          <td class="total-cell">${st.total_hours}</td>
+        </tr>
+      `).join('')}
+    </table>
+  `).join('');
 }
 
 document.getElementById('capture-loc').addEventListener('click', () => {
@@ -234,6 +267,8 @@ document.getElementById('save-staff').addEventListener('click', async () => {
 
 document.getElementById('refresh-log').addEventListener('click', loadLog);
 document.getElementById('refresh-hours').addEventListener('click', loadHours);
+document.getElementById('prev-week').addEventListener('click', () => { weekOffset--; loadHours(); });
+document.getElementById('next-week').addEventListener('click', () => { weekOffset++; loadHours(); });
 
 loadSites();
 loadStaff();
