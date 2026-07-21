@@ -5,18 +5,35 @@
 
 const express = require('express');
 const cors = require('cors');
+const basicAuth = require('express-basic-auth');
 const db = require('./db');
 const { isWithinGeofence } = require('./geofence');
 
 const app = express();
+
+if (!process.env.ADMIN_USER || !process.env.ADMIN_PASS) {
+  throw new Error('ADMIN_USER and ADMIN_PASS environment variables must be set');
+}
+
+// Protects the admin dashboard and any route that manages staff/sites data.
+// Does NOT protect the routes the staff phone app itself needs (verify-pin,
+// tap in/out, site list) — those stay open so staff can clock in without
+// logging in.
+const adminAuth = basicAuth({
+  users: { [process.env.ADMIN_USER]: process.env.ADMIN_PASS },
+  challenge: true,
+  realm: 'CityClean Admin',
+});
+
 app.use(cors());
 app.use(express.json());
+app.use('/admin.html', adminAuth);
 app.use(express.static('public'));
 
 // ---------- STAFF ----------
 
 // Add a new staff member
-app.post('/api/staff', async (req, res) => {
+app.post('/api/staff', adminAuth, async (req, res) => {
   const { name, role, phone, pin } = req.body;
   if (!name || !role) {
     return res.status(400).json({ error: 'name and role are required' });
@@ -38,13 +55,13 @@ app.post('/api/staff', async (req, res) => {
 });
 
 // List all staff
-app.get('/api/staff', async (req, res) => {
+app.get('/api/staff', adminAuth, async (req, res) => {
   const result = await db.query('SELECT * FROM staff WHERE active = 1');
   res.json(result.rows);
 });
 
 // Delete a staff member entirely (used for cleaning up test/wrong records)
-app.delete('/api/staff/:id', async (req, res) => {
+app.delete('/api/staff/:id', adminAuth, async (req, res) => {
   try {
     await db.query('DELETE FROM time_entries WHERE staff_id = $1', [req.params.id]);
     const result = await db.query('DELETE FROM staff WHERE id = $1', [req.params.id]);
@@ -73,7 +90,7 @@ app.post('/api/staff/verify-pin', async (req, res) => {
 // ---------- SITES ----------
 
 // Add a new client site
-app.post('/api/sites', async (req, res) => {
+app.post('/api/sites', adminAuth, async (req, res) => {
   const { client_name, address, latitude, longitude, geofence_radius_m } = req.body;
   if (!client_name || latitude == null || longitude == null) {
     return res.status(400).json({ error: 'client_name, latitude and longitude are required' });
@@ -92,7 +109,7 @@ app.get('/api/sites', async (req, res) => {
 });
 
 // Delete a site entirely (used for cleaning up test/wrong records)
-app.delete('/api/sites/:id', async (req, res) => {
+app.delete('/api/sites/:id', adminAuth, async (req, res) => {
   try {
     await db.query('DELETE FROM time_entries WHERE site_id = $1', [req.params.id]);
     const result = await db.query('DELETE FROM sites WHERE id = $1', [req.params.id]);
@@ -187,7 +204,7 @@ app.get('/api/timesheets/:staff_id', async (req, res) => {
 });
 
 // Everything (admin view — including rejected attempts, useful for spotting abuse)
-app.get('/api/time-entries', async (req, res) => {
+app.get('/api/time-entries', adminAuth, async (req, res) => {
   const result = await db.query(
     `SELECT te.*, st.name AS staff_name, s.client_name FROM time_entries te
      JOIN staff st ON st.id = te.staff_id
