@@ -214,6 +214,43 @@ app.get('/api/time-entries', adminAuth, async (req, res) => {
   res.json(result.rows);
 });
 
+
+// ---------- REPORTS ----------
+
+// Total hours worked per staff member, computed by pairing each accepted
+// clock_in with the next accepted clock_out for that person.
+app.get('/api/reports/hours', adminAuth, async (req, res) => {
+  const staffResult = await db.query('SELECT id, name FROM staff WHERE active = 1');
+  const entriesResult = await db.query(
+    `SELECT staff_id, action, tap_time FROM time_entries
+     WHERE accepted = 1
+     ORDER BY staff_id, tap_time ASC`
+  );
+
+  const totalsMs = {};
+  const openClockIn = {};
+
+  for (const row of entriesResult.rows) {
+    if (row.action === 'clock_in') {
+      openClockIn[row.staff_id] = row.tap_time;
+    } else if (row.action === 'clock_out' && openClockIn[row.staff_id]) {
+      const start = new Date(openClockIn[row.staff_id]).getTime();
+      const end = new Date(row.tap_time).getTime();
+      totalsMs[row.staff_id] = (totalsMs[row.staff_id] || 0) + (end - start);
+      delete openClockIn[row.staff_id];
+    }
+  }
+
+  const report = staffResult.rows.map((s) => ({
+    staff_id: s.id,
+    name: s.name,
+    total_hours: Math.round(((totalsMs[s.id] || 0) / 3600000) * 100) / 100,
+    currently_clocked_in: Boolean(openClockIn[s.id]),
+  }));
+
+  res.json(report);
+});
+
 const PORT = process.env.PORT || 3000;
 
 db.init()
